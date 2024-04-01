@@ -1,10 +1,10 @@
 import os
 import json
-from datetime import datetime
 import logging
-import argparse
+from datetime import datetime
 from typing import List, Dict, Any
 
+import argparse
 import serpapi
 
 
