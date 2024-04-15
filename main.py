@@ -24,7 +24,10 @@ class AppInfoRetriever:
     def setup_params(self, query: str, engine: str, device: str, country: str, language: str,
                      disallow_explicit: bool = False, num: int = 20, start_page: int = 0) -> Dict[str, Any]:
         """
-        Returns a prepared parameters dict for the `serpapi.Client().search()` method
+        Returns a prepared parameters dict for the `serpapi.Client().search()` method. SerpApi parameters can be found
+        here for Apple App Store and Google Play Store respectively:
+        https://serpapi.com/apple-app-store,
+        https://serpapi.com/google-play-api
         :param query:               Search query
         :param engine:              Engine to be searched
         :param device:              Device type
@@ -36,16 +39,25 @@ class AppInfoRetriever:
         :return:                    Params dict for serpapi client
         """
         return {
-            'api_key': self.serpapi_key,
-            'engine': engine,
-            'device': device,
-            'country': country,
-            'lang': language,
-            'disallow_explicit': disallow_explicit,
-            'num': num,
-            'page': start_page,
-            'q': query,    # Used for Google Play Store
-            'term': query  # Used for Apple App Store
+            'api_key': self.serpapi_key,             # Same for Google Play and Apple App Store
+            'engine': engine,                        # Same for Google Play and Apple App Store
+            'device': device,                        # Same for Google Play and Apple App Store
+
+            'country': country,                      # Apple App Store specific
+            'lang': language,                        # Apple App Store specific
+            'disallow_explicit': disallow_explicit,  # Apple App Store specific
+            'num': num,                              # Apple App Store specific
+            'page': start_page,                      # Apple App Store specific
+            'term': query,                           # Used for Apple App Store
+
+            'q': query,                              # Used for Google Play Store
+            'gl': country,                           # TODO: Check if it's in the right format!
+            'hl': language,                          # TODO: Check if it's in the right format!
+            'age': None,                             # TODO: Fill in so that result matches `disallow_explicit=True`
+            'next_page_token': None                  # TODO: Varies on each page --> Must be updated after each call to the API:
+                                                     # if "next" in results["serpapi_pagination"]:
+                                                     #     search = requests.get(results["serpapi_pagination"]["next"])
+                                                     # TODO: See https://serpapi.com/blog/serpapi-pagination/
         }
 
     def save_results(self, results: List[Any], output_fp: str):
