@@ -53,8 +53,7 @@ class AppInfoRetriever:
 
             'q': query,                              # Used for Google Play Store
             'gl': country,                           # Used for Google Play Store
-            'hl': language,                          # Used for Google Play Store
-            'age': None                              # TODO: Fill in so that result matches `disallow_explicit=True`
+            'hl': language                           # Used for Google Play Store
         }
 
     def save_results(self, results: List[Any], output_fp: str):
@@ -108,7 +107,8 @@ class AppInfoRetriever:
                             print(f'Scraping page {page_idx} of {max_pages}...')
                             new_page_results = requests.get('https://serpapi.com/search.json?', params=params).json()
                             results.extend(new_page_results['organic_results'])
-
+                            print(new_page_results['search_metadata'])
+                            print(new_page_results.keys())
                             # Select next page
                             if 'next' in new_page_results.get('serpapi_pagination', {}):
                                 if e == 'google_play':
@@ -146,7 +146,7 @@ if __name__ == '__main__':
                             help='List of languages to query')
     arg_parser.add_argument('--disallow-explicit',
                             action='store_true',
-                            help='List of countries to query')
+                            help='Excludes explicit apps from search results (only works with Apple App Store)')
     arg_parser.add_argument('--start-page',
                             type=int,
                             default=0,
