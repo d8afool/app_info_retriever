@@ -3,6 +3,8 @@ import json
 import logging
 from datetime import datetime
 from typing import List, Dict, Any
+import requests
+from pprint import pprint
 
 import argparse
 import serpapi
@@ -17,14 +19,16 @@ class AppInfoRetriever:
 
     def __init__(self, serpapi_key: str):
         self.serpapi_key = serpapi_key or os.environ['SERP_API_KEY']
-        self.client = serpapi.Client(api_key=self.serpapi_key)
         self.logger = logging.getLogger('app_info_retriever')
         print(f'Using SerpApi key {self.serpapi_key}')
 
     def setup_params(self, query: str, engine: str, device: str, country: str, language: str,
                      disallow_explicit: bool = False, num: int = 20, start_page: int = 0) -> Dict[str, Any]:
         """
-        Returns a prepared parameters dict for the `serpapi.Client().search()` method
+        Returns a prepared parameters dict for the `serpapi.Client().search()` method. SerpApi parameters can be found
+        here for Apple App Store and Google Play Store respectively:
+        https://serpapi.com/apple-app-store,
+        https://serpapi.com/google-play-api
         :param query:               Search query
         :param engine:              Engine to be searched
         :param device:              Device type
@@ -36,16 +40,20 @@ class AppInfoRetriever:
         :return:                    Params dict for serpapi client
         """
         return {
-            'api_key': self.serpapi_key,
-            'engine': engine,
-            'device': device,
-            'country': country,
-            'lang': language,
-            'disallow_explicit': disallow_explicit,
-            'num': num,
-            'page': start_page,
-            'q': query,    # Used for Google Play Store
-            'term': query  # Used for Apple App Store
+            'api_key': self.serpapi_key,             # Same for Google Play and Apple App Store
+            'engine': engine,                        # Same for Google Play and Apple App Store
+            'device': device,                        # Same for Google Play and Apple App Store
+
+            'country': country,                      # Used for Apple App Store
+            'lang': f'{language}-{language}',        # Used for Apple App Store
+            'disallow_explicit': disallow_explicit,  # Used for Apple App Store
+            'num': num,                              # Used for Apple App Store
+            'page': start_page,                      # Used for Apple App Store
+            'term': query,                           # Used for Apple App Store
+
+            'q': query,                              # Used for Google Play Store
+            'gl': country,                           # Used for Google Play Store
+            'hl': language                           # Used for Google Play Store
         }
 
     def save_results(self, results: List[Any], output_fp: str):
@@ -91,20 +99,25 @@ class AppInfoRetriever:
                                                    start_page=start_page,
                                                    disallow_explicit=disallow_explicit)
                         results = []
-                        page_idx = 1
+                        page_idx = 0
 
                         # Iterate over pages until `max_pages`
-                        while page_idx <= max_pages:
+                        while page_idx < max_pages:
                             page_idx += 1
-                            print(f'Scraping page {params["page"]}...')
-                            search = self.client.search(params)
-                            new_page_results = search.as_dict()     # JSON -> Python dict
+                            print(f'Scraping page {page_idx} of {max_pages}...')
+                            new_page_results = requests.get('https://serpapi.com/search.json?', params=params).json()
                             results.extend(new_page_results['organic_results'])
-
+                            print(new_page_results['search_metadata'])
+                            print(new_page_results.keys())
+                            # Select next page
                             if 'next' in new_page_results.get('serpapi_pagination', {}):
-                                params['page'] += 1
+                                if e == 'google_play':
+                                    params['next_page_token'] = new_page_results['serpapi_pagination']['next_page_token']
+                                elif e == 'apple_app_store':
+                                    params['page'] += 1
                             else:
                                 break
+
                         print(f'Saving results...')
                         print('------------------')
                         output_fp = os.path.join('data', f'{e}.{q}.{datetime.now()}.json')
@@ -133,7 +146,7 @@ if __name__ == '__main__':
                             help='List of languages to query')
     arg_parser.add_argument('--disallow-explicit',
                             action='store_true',
-                            help='List of countries to query')
+                            help='Excludes explicit apps from search results (only works with Apple App Store)')
     arg_parser.add_argument('--start-page',
                             type=int,
                             default=0,
