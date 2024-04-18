@@ -13,6 +13,7 @@ will be written a separate file.
 3. Save you API key to environment variables using  `export SERP_API_KEY=<your_key>` (or use the command line argument 
 `--serpapikey`)
 4. Install Python 3.x
+5. Install the required packages via `pip install -r requirements.txt`
 
 ## Usage
 Run `python main.py --queries <QUERY_1>, <QUERY_2>, ...`, where  `<QUERY_1>`, `<QUERY_2>` (and so on) are your search 
