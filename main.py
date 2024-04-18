@@ -4,22 +4,22 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any
 import requests
-from pprint import pprint
-
 import argparse
-import serpapi
 
+import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 allowed_engines = ['apple_app_store', 'google_play']
 allowed_devices = ['mobile', 'desktop', 'tablet']
+output_formats = ['json', 'csv']
 
 
 class AppInfoRetriever:
 
-    def __init__(self, serpapi_key: str):
+    def __init__(self, serpapi_key: str, output_format: str):
         self.serpapi_key = serpapi_key or os.environ['SERP_API_KEY']
         self.logger = logging.getLogger('app_info_retriever')
+        self.output_format = output_format
         print(f'Using SerpApi key {self.serpapi_key}')
 
     def setup_params(self, query: str, engine: str, device: str, country: str, language: str,
@@ -56,20 +56,34 @@ class AppInfoRetriever:
             'hl': language                           # Used for Google Play Store
         }
 
-    def save_results(self, results: List[Any], output_fp: str):
+    def save_results(self, results: List[Any], output_fp: str, engine: str):
         """
         Saves search results to a JSON file
         :param results:             Search results
         :param output_fp:           Output file path
+        :param engine:              Engine where results were retrieved from (Apple App Store or Google Play)
         :return:
         """
-        with open(output_fp, 'w') as f:
-            f.write(json.dumps(results, indent=4, ensure_ascii=False))
+        # Flatten Googla Play results
+        if engine == 'google_play':
+            results = [x['items'] for x in results]
+            results_flat = []
+            for page in results:
+                results_flat.extend(page)
+            results = results_flat
+        # Write output file
+        df = pd.DataFrame.from_records(results)
+        if output_fp.lower().endswith('csv'):
+            df.to_csv(output_fp)
+        elif output_fp.lower().endswith('json'):
+            df.T.to_json(output_fp)
+        else:
+            raise ValueError(f'Unknown output format {self.output_format} given.')
 
     def run(self, queries: List[str],
-                 engines: List[str] = allowed_engines,
-                 countries: List[str] = ['de'],
-                 languages: List[str] = ['de-de'],
+                 engines: List[str],
+                 countries: List[str],
+                 languages: List[str],
                  disallow_explicit: bool = False,
                  start_page: int = 0,
                  max_pages: int = 50,
@@ -107,8 +121,6 @@ class AppInfoRetriever:
                             print(f'Scraping page {page_idx} of {max_pages}...')
                             new_page_results = requests.get('https://serpapi.com/search.json?', params=params).json()
                             results.extend(new_page_results['organic_results'])
-                            print(new_page_results['search_metadata'])
-                            print(new_page_results.keys())
                             # Select next page
                             if 'next' in new_page_results.get('serpapi_pagination', {}):
                                 if e == 'google_play':
@@ -120,8 +132,8 @@ class AppInfoRetriever:
 
                         print(f'Saving results...')
                         print('------------------')
-                        output_fp = os.path.join('data', f'{e}.{q}.{datetime.now()}.json')
-                        self.save_results(results, output_fp)
+                        output_fp = os.path.join('data', f'{e}.{q}.{datetime.now()}.{self.output_format}')
+                        self.save_results(results, output_fp, engine=e)
         print('Done.')
 
 
@@ -142,7 +154,7 @@ if __name__ == '__main__':
                             help='List of countries to query')
     arg_parser.add_argument('--languages', '-l',
                             nargs='+',
-                            default=['de-de'],
+                            default=['de'],
                             help='List of languages to query')
     arg_parser.add_argument('--disallow-explicit',
                             action='store_true',
@@ -164,9 +176,13 @@ if __name__ == '__main__':
     arg_parser.add_argument('--serpapikey', '-k',
                             type=str,
                             help='SerpApi key')
+    arg_parser.add_argument('--format', '-f',
+                            default=output_formats[0],
+                            choices=output_formats,
+                            help='Output format')
 
     args = arg_parser.parse_args()
-    retriever = AppInfoRetriever(serpapi_key=args.serpapikey)
+    retriever = AppInfoRetriever(serpapi_key=args.serpapikey, output_format=args.format)
     retriever.run(queries=args.queries,
                   engines=args.engines,
                   countries=args.countries,
